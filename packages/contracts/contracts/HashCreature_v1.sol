@@ -72,6 +72,9 @@ contract HashCreature_v1 is ERC721 {
   }
 
   function getImageData(bytes32 hash) public view returns (string memory) {
+    for (uint256 i = 0; i < hash.length; i++) {
+      console.log(uint8(hash[i]) % 2);
+    }
     //image generation goes here
     return "<svg>";
   }
