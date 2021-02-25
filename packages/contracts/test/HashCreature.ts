@@ -4,13 +4,22 @@ import { solidity } from "ethereum-waffle";
 
 import * as ipfsHash from "ipfs-only-hash";
 
+// const createClient = require("ipfs-http-client");
+
+//this endpoint is too slow
+// export const ipfs = createClient({
+//   host: "ipfs.infura.io",
+//   port: 5001,
+//   protocol: "https",
+// });
+
 chai.use(solidity);
 const { expect } = chai;
 
 describe("HashCreature_v1", function () {
   let hashCreature;
-  const contractName = "HashCreature_v1";
-  const contractSymbol = "HC1";
+  const contractName = "HashCreature";
+  const contractSymbol = "HC";
   const maxSupply = 10000;
   this.beforeAll("initialization.", async function () {
     const HashCreature = await ethers.getContractFactory("HashCreature_v1");
@@ -65,8 +74,7 @@ describe("HashCreature_v1", function () {
     );
     expect(await hashCreature.getSeedHash(tokenId)).to.equal(hash);
 
-    //SVG Image generation logic goes here
-    const image_data = await hashCreature.getImageData(hash);
+    const image_data = await hashCreature.getImageData(hash, 0);
 
     const metadata = JSON.stringify({
       blockNumber: blockNumber.toString(),
@@ -76,14 +84,13 @@ describe("HashCreature_v1", function () {
       tokenId,
       iss,
       name,
-      image_data,
+      image_data: image_data.split("\\").join(""),
     });
+    // await ipfs.add(Buffer.from(metadata));
 
     expect(await hashCreature.getMetaData(tokenId)).to.equal(metadata);
-
     const metadataBuffer = Buffer.from(metadata);
     const cid = await ipfsHash.of(metadataBuffer);
-
     expect(await hashCreature.getCidFromString(metadata)).to.equal(cid);
     expect(await hashCreature.tokenURI(tokenId)).to.equal(
       `${baseIpfsUrl}${cid}`

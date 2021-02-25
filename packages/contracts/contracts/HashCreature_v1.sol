@@ -10,6 +10,7 @@ contract HashCreature_v1 is ERC721 {
   mapping(uint256 => bytes32) public lastBlockHashMemory;
   mapping(uint256 => bytes32) public nameMemory;
   mapping(uint256 => address) public issMemory;
+  mapping(uint256 => uint256) public transferCount;
 
   string public name;
   string public symbol;
@@ -25,6 +26,15 @@ contract HashCreature_v1 is ERC721 {
     name = _name;
     symbol = _symbol;
     maxSupply = _maxSupply;
+  }
+
+  function _transferFrom(
+    address from,
+    address to,
+    uint256 tokenId
+  ) internal {
+    transferCount[tokenId]++;
+    super._transferFrom(from, to, tokenId);
   }
 
   function mint(bytes32 _name) external {
@@ -71,12 +81,58 @@ contract HashCreature_v1 is ERC721 {
       );
   }
 
-  function getImageData(bytes32 hash) public view returns (string memory) {
+  function getImageData(bytes32 hash, uint256 transferCount)
+    public
+    view
+    returns (string memory)
+  {
+    string memory color =
+      string(
+        abi.encodePacked(
+          "hsl(",
+          uintToString(uint256(hash) % 360),
+          ", ",
+          uintToString(transferCount <= 100 ? 100 - transferCount : 0),
+          "%, 50%)"
+        )
+      );
+    uint256 canvasSize = 360;
+    uint256 cellSize = 45;
+    bytes memory temp;
     for (uint256 i = 0; i < hash.length; i++) {
-      console.log(uint8(hash[i]) % 2);
+      uint8 num = uint8(hash[i]) % 2;
+      uint8 x = uint8(i % 4);
+      uint8 y = uint8(i / 4);
+      temp = abi.encodePacked(
+        temp,
+        '<rect x=\\"',
+        uintToString(x * cellSize),
+        '\\" y=\\"',
+        uintToString(y * cellSize),
+        '\\" width=\\"45\\" height=\\"45\\" style=\\"fill:',
+        num == 0 ? color : "white",
+        ';stroke-width:1;\\"></rect>',
+        '<rect x=\\"',
+        uintToString((7 - x) * cellSize),
+        '\\" y=\\"',
+        uintToString(y * cellSize),
+        '\\" width=\\"45\\" height=\\"45\\" style=\\"fill:',
+        num == 0 ? color : "white",
+        ';stroke-width:1;\\"></rect>'
+      );
     }
-    //image generation goes here
-    return "<svg>";
+    return
+      string(
+        abi.encodePacked(
+          '<svg xmlns=\\"http://www.w3.org/2000/svg\\" id=\\"svgcanvas\\" width=\\"',
+          uintToString(canvasSize),
+          '\\" height=\\"',
+          uintToString(canvasSize),
+          '\\">',
+          temp,
+          "</svg>"
+        )
+      );
   }
 
   function getMetaData(uint256 tokenId) public view returns (string memory) {
@@ -98,7 +154,7 @@ contract HashCreature_v1 is ERC721 {
           '","name":"',
           bytes32ToString(nameMemory[tokenId]),
           '","image_data":"',
-          getImageData(getSeedHash(tokenId)),
+          getImageData(getSeedHash(tokenId), transferCount[tokenId]),
           '"}'
         )
       );
