@@ -1,0 +1,12 @@
+{
+  "name": "hashcreature",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "packages/**"
+  ],
+  "devDependencies": {
+    "cross-env": "^7.0.3"
+  }
+}
