@@ -4,7 +4,6 @@ pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "hardhat/console.sol";
 
 contract HashCreature_v1 is ERC721 {
   using SafeMath for uint256;
@@ -24,6 +23,8 @@ contract HashCreature_v1 is ERC721 {
   mapping(uint256 => uint256) public transferCount;
   mapping(uint256 => bytes32) public hashMemory;
 
+  string public constant description =
+    "HashCreatures are generate by hash in the minting transaction. Image svg data and token metadata is generated in solidity itself, just onchain. Image will be deteriorated when you transfer creature.";
   uint256 public constant initMintPrice = 0.001 ether;
   uint256 public constant initBurnPrice = 0.0009 ether;
 
@@ -48,15 +49,16 @@ contract HashCreature_v1 is ERC721 {
 
   function _transferFrom(
     address from,
-    address to,
+    address payable to,
     uint256 tokenId
   ) internal {
-    transferCount[tokenId]++;
+    revert(transferCount[token] > 5, "asset only transferrable for 5 times.");
+    transferCount[token]++;
     super._transferFrom(from, to, tokenId);
   }
 
   function changeCreator(address payable _creator) public {
-    require(creator == msg.sender, "msg.sender must be current creator");
+    require(msg.sender == creator, "msg.sender must be current creator");
     creator = _creator;
   }
 
@@ -67,9 +69,9 @@ contract HashCreature_v1 is ERC721 {
     );
     uint256 mintPrice = getPriceToMint(totalSupply);
     require(msg.value >= mintPrice, "msg.value must be grater than mint price");
-    uint256 reserveCut = getPriceToBurn(totalSupply);
     nonce = nonce.add(1);
     totalSupply = totalSupply.add(1);
+    uint256 reserveCut = getPriceToBurn(totalSupply);
     bytes32 hash =
       keccak256(
         abi.encodePacked(
@@ -99,12 +101,10 @@ contract HashCreature_v1 is ERC721 {
   }
 
   function getPriceToMint(uint256 _supply) public view returns (uint256) {
-    require(_supply < supplyLimit, "supply must be less than max supply");
     return initMintPrice.add(_supply.mul(initMintPrice));
   }
 
   function getPriceToBurn(uint256 _supply) public view returns (uint256) {
-    require(_supply < supplyLimit, "supply must be less than max supply");
     return _supply.mul(initBurnPrice);
   }
 
@@ -150,7 +150,7 @@ contract HashCreature_v1 is ERC721 {
           "hsl(",
           uintToString(uint256(hash) % 360),
           ", ",
-          uintToString(transferCount <= 100 ? 100 - transferCount : 0),
+          uintToString(transferCount < 5 ? 100 - transferCount.mul(20) : 0),
           "%, 50%)"
         )
       );
@@ -182,7 +182,7 @@ contract HashCreature_v1 is ERC721 {
     return
       string(
         abi.encodePacked(
-          '<svg xmlns=\\"http://www.w3.org/2000/svg\\" id=\\"svgcanvas\\" width=\\"',
+          '<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"',
           uintToString(canvasSize),
           '\\" height=\\"',
           uintToString(canvasSize),
@@ -204,6 +204,8 @@ contract HashCreature_v1 is ERC721 {
           name,
           "#",
           uintToString(tokenId),
+          '","description":"',
+          description,
           '"}'
         )
       );
