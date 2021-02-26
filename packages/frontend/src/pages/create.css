@@ -1,0 +1,21 @@
+.container {
+  padding: 24px;
+  margin: 0 auto;
+}
+
+.slippage {
+  margin: 0 auto;
+  margin-top: 24px;
+  text-align: center;
+}
+
+.slippage_radio {
+  margin-top: 12px;
+}
+
+.mint_button {
+  margin: 0 auto;
+  text-align: center;
+  margin-top: 20px;
+  width: 70%;
+}

@@ -3,7 +3,7 @@ import Web3Modal from "web3modal";
 import WalletConnectProvider from "@walletconnect/web3-provider";
 
 import networkConfig from "../configs/network.json";
-import { abi } from "../Chocomint.json";
+import { abi } from "../HashCreature_v1.json";
 
 export const ipfsBaseUrl = "ipfs://";
 export const ipfsHttpsBaseUrl = "https://ipfs.io/ipfs/";
