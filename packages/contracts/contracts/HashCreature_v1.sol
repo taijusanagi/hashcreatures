@@ -2,30 +2,48 @@
 pragma solidity ^0.5.17;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "hardhat/console.sol";
 
 contract HashCreature_v1 is ERC721 {
-  mapping(uint256 => uint256) public blockNumberMemory;
-  mapping(uint256 => bytes32) public lastBlockHashMemory;
-  mapping(uint256 => bytes32) public nameMemory;
-  mapping(uint256 => address) public issMemory;
+  using SafeMath for uint256;
+
+  event Minted(
+    address indexed iss,
+    uint256 indexed tokenId,
+    uint256 indexed pricePaid
+  );
+
+  event Burned(
+    address indexed iss,
+    uint256 indexed tokenId,
+    uint256 indexed priceReceived
+  );
+
   mapping(uint256 => uint256) public transferCount;
+  mapping(uint256 => bytes32) public hashMemory;
+
+  uint256 public constant initMintPrice = 0.001 ether;
+  uint256 public constant initBurnPrice = 0.0009 ether;
 
   string public name;
   string public symbol;
-
+  uint256 public nonce;
+  uint256 public supplyLimit;
   uint256 public totalSupply;
-  uint256 public maxSupply;
+  address payable public creator;
 
   constructor(
     string memory _name,
     string memory _symbol,
-    uint256 _maxSupply
+    uint256 _supplyLimit,
+    address payable _creator
   ) public {
     name = _name;
     symbol = _symbol;
-    maxSupply = _maxSupply;
+    supplyLimit = _supplyLimit;
+    creator = _creator;
   }
 
   function _transferFrom(
@@ -37,17 +55,57 @@ contract HashCreature_v1 is ERC721 {
     super._transferFrom(from, to, tokenId);
   }
 
-  function mint(bytes32 _name) external {
+  function changeCreator(address payable _creator) public {
+    require(creator == msg.sender, "msg.sender must be current creator");
+    creator = _creator;
+  }
+
+  function mint() external payable {
     require(
-      totalSupply < maxSupply,
+      totalSupply < supplyLimit,
       "total supply must be less than max supply"
     );
-    totalSupply++;
-    blockNumberMemory[totalSupply] = block.number;
-    lastBlockHashMemory[totalSupply] = blockhash(block.number - 1);
-    nameMemory[totalSupply] = _name;
-    issMemory[totalSupply] = msg.sender;
-    _mint(msg.sender, totalSupply);
+    uint256 mintPrice = getPriceToMint(totalSupply);
+    require(msg.value >= mintPrice, "msg.value must be grater than mint price");
+    uint256 reserveCut = getPriceToBurn(totalSupply);
+    nonce = nonce.add(1);
+    totalSupply = totalSupply.add(1);
+    bytes32 hash =
+      keccak256(
+        abi.encodePacked(
+          block.number,
+          blockhash(block.number - 1),
+          getChainId(),
+          address(this),
+          msg.sender,
+          nonce
+        )
+      );
+    hashMemory[nonce] = hash;
+    _mint(msg.sender, nonce);
+    creator.transfer(mintPrice.sub(reserveCut));
+    if (msg.value.sub(mintPrice) > 0) {
+      msg.sender.transfer(msg.value.sub(mintPrice));
+    }
+    emit Minted(msg.sender, nonce, mintPrice);
+  }
+
+  function burn(uint256 tokenId) public {
+    uint256 burnPrice = getPriceToBurn(totalSupply);
+    _burn(msg.sender, tokenId);
+    totalSupply = totalSupply.sub(1);
+    msg.sender.transfer(burnPrice);
+    emit Burned(msg.sender, tokenId, burnPrice);
+  }
+
+  function getPriceToMint(uint256 _supply) public view returns (uint256) {
+    require(_supply < supplyLimit, "supply must be less than max supply");
+    return initMintPrice.add(_supply.mul(initMintPrice));
+  }
+
+  function getPriceToBurn(uint256 _supply) public view returns (uint256) {
+    require(_supply < supplyLimit, "supply must be less than max supply");
+    return _supply.mul(initBurnPrice);
   }
 
   function tokenURI(uint256 tokenId) external view returns (string memory) {
@@ -136,43 +194,17 @@ contract HashCreature_v1 is ERC721 {
   }
 
   function getMetaData(uint256 tokenId) public view returns (string memory) {
+    require(_exists(tokenId), "token must exist");
     return
       string(
         abi.encodePacked(
-          '{"blockNumber":"',
-          uintToString(blockNumberMemory[tokenId]),
-          '","lastBlockHash":"',
-          bytesToString(abi.encodePacked(lastBlockHashMemory[tokenId])),
-          '","chainId":"',
-          uintToString(getChainId()),
-          '","contractAddress":"',
-          bytesToString(abi.encodePacked(address(this))),
-          '","tokenId":"',
-          uintToString(tokenId),
-          '","iss":"',
-          bytesToString(abi.encodePacked(issMemory[tokenId])),
+          '{"image_data":"',
+          getImageData(hashMemory[tokenId], transferCount[tokenId]),
           '","name":"',
-          bytes32ToString(nameMemory[tokenId]),
-          '","image_data":"',
-          getImageData(getSeedHash(tokenId), transferCount[tokenId]),
+          name,
+          "#",
+          uintToString(tokenId),
           '"}'
-        )
-      );
-  }
-
-  function getSeedHash(uint256 tokenId) public view returns (bytes32) {
-    require(_exists(tokenId), "token must exist");
-
-    return
-      keccak256(
-        abi.encodePacked(
-          blockNumberMemory[tokenId],
-          lastBlockHashMemory[tokenId],
-          getChainId(),
-          address(this),
-          tokenId,
-          issMemory[tokenId],
-          nameMemory[tokenId]
         )
       );
   }
