@@ -5,7 +5,7 @@
 
 .slippage {
   margin: 0 auto;
-  margin-top: 24px;
+  margin-top: 40px;
   text-align: center;
 }
 
@@ -13,9 +13,21 @@
   margin-top: 12px;
 }
 
+.confirm_button {
+  text-align: right;
+}
+
 .mint_button {
   margin: 0 auto;
   text-align: center;
   margin-top: 20px;
   width: 70%;
+}
+
+.web3modal-provider-name {
+  font-size: medium !important;
+}
+
+.web3modal-provider-description {
+  font-size: small !important;
 }

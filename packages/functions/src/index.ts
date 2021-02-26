@@ -1,8 +1,8 @@
 import * as functions from "firebase-functions";
-import {ethers} from "ethers";
+import { ethers } from "ethers";
 
 import network from "./network.json";
-import {abi} from "./HashCreature_v1.json";
+import { abi } from "./HashCreature_v1.json";
 
 const createClient = require("ipfs-http-client");
 
@@ -13,29 +13,32 @@ export const ipfs = createClient({
   protocol: "https",
 });
 
-export const helloWorld = functions.https.onRequest(async (request, response) => {
-  const chainId = "4";
-
-
-  const {contractAddress, rpc} = network[chainId];
-  const provider = new ethers.providers.JsonRpcProvider(rpc);
-  const contract = new ethers.Contract(contractAddress, abi, provider);
-  const filter = contract.filters.Transfer();
-  // {
-  //   address: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-  //   topics: [
-  //     '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
-  //     '0x0000000000000000000000008ba1f109551bd432803012645ac136ddd64dba72'
-  //   ]
-  // }
-  const events = await contract.queryFilter(filter);
-  for (const event of events) {
-    const metadata = await contract.getMetaData(event.args!.tokenId);
-    const url = await contract.tokenURI(event.args!.tokenId);
-    console.log(url);
-    console.log(metadata);
-    const cid = await ipfs.add(Buffer.from(metadata));
-    console.log(cid);
-  }
-  response.send("Hello from Firebase!");
-});
+module.exports = functions
+  .region("asia-northeast1")
+  .pubsub.schedule("every 5 minutes")
+  .onRun(async () => {
+    const chainId = "4";
+    const { contractAddress, rpc } = network[chainId];
+    const provider = new ethers.providers.JsonRpcProvider(rpc);
+    const contract = new ethers.Contract(contractAddress, abi, provider);
+    const filter = contract.filters.Transfer() as any;
+    const events = await contract.queryFilter(
+      filter,
+      await provider.getBlockNumber().then((b) => b - 30),
+      "latest"
+    );
+    console.log(events.length);
+    const processedToken = [] as string[];
+    for (var i = events.length - 1; i >= 0; i--) {
+      const { tokenId, to } = events[i].args!;
+      const tokenIdString = tokenId.toString();
+      if (!processedToken.find((tokenId) => tokenId === tokenIdString)) {
+        if (to !== "0x0000000000000000000000000000000000000000") {
+          const metadata = await contract.getMetaData(tokenId);
+          const cid = await ipfs.add(Buffer.from(metadata));
+          console.log(cid);
+        }
+        processedToken.push(tokenIdString);
+      }
+    }
+  });

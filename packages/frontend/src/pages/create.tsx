@@ -15,9 +15,12 @@ export const Create: React.FC = () => {
     setWaitingTransactionConfirmation,
   ] = React.useState(false);
 
-  const [slippage, setSlippage] = React.useState("");
+  const [slippage, setSlippage] = React.useState("0");
   const [priceToMint, setPriceToMint] = React.useState("");
   const [priceToBurn, setPriceToBurn] = React.useState("");
+  const [dialogHeader, setDialogHeader] = React.useState("");
+  const [dialogText, setDialogText] = React.useState("");
+  const [tokenId, setTokenId] = React.useState("");
 
   React.useEffect(() => {
     const chainId = "4";
@@ -37,13 +40,25 @@ export const Create: React.FC = () => {
     setSlippage(event.target.value);
   };
 
-  const openConfirm = () => {
-    const dialog = document.getElementById("dialog-dark") as any;
+  interface Dialog {
+    header: string;
+    text: string;
+  }
+
+  const openDialog = ({ header, text }: Dialog) => {
+    const dialog = document.getElementById("dialog") as any;
+    setDialogHeader(header);
+    setDialogText(text);
     dialog.showModal();
   };
-  const openAlert = () => {
-    const dialog = document.getElementById("dialog-alert") as any;
+
+  const openPrompt = () => {
+    const dialog = document.getElementById("prompt") as any;
     dialog.showModal();
+  };
+
+  const handleTokenIdChain = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setTokenId(event.target.value);
   };
 
   const mintNft = async () => {
@@ -51,22 +66,68 @@ export const Create: React.FC = () => {
     const signer = await getEthersSigner();
     const chainId = await signer.getChainId();
     if (chainId != 4) {
-      openAlert();
+      openDialog({
+        header: "Wrong Network Detected!",
+        text: "Please connect to Rinkeby Network",
+      });
       return;
     }
-    console.log("test", priceToMint, slippage);
-
     const value = ethers.BigNumber.from(priceToMint)
       .mul(parseInt(slippage) + 1)
       .toString();
-    console.log("test");
     const { contractAddress } = getNetworkConfig(
       chainId.toString() as ChainIdType
     );
-    console.log(value);
     const contract = getContract(contractAddress).connect(signer);
-    const { hash } = await contract.mint({ value });
-    alert(`TxHash:${hash}`);
+
+    await contract
+      .mint({ value })
+      .then(({ hash }: { hash: string }) => {
+        openDialog({
+          header: "Congratulation!",
+          text: `You can check your asset in OpenSea soon. Tx:${hash}`,
+        });
+      })
+      .catch((err: Error) => {
+        console.error(Error);
+        openDialog({
+          header: "Transaction Failed!",
+          text: `Please try again... I hope it will work...`,
+        });
+      });
+  };
+
+  const burnNFT = async () => {
+    setWaitingTransactionConfirmation(true);
+    const signer = await getEthersSigner();
+    const chainId = await signer.getChainId();
+    if (chainId != 4) {
+      openDialog({
+        header: "Wrong Network Detected!",
+        text: "Please connect to Rinkeby Network",
+      });
+      return;
+    }
+    const { contractAddress } = getNetworkConfig(
+      chainId.toString() as ChainIdType
+    );
+    const contract = getContract(contractAddress).connect(signer);
+
+    await contract
+      .burn(tokenId)
+      .then(({ hash }: { hash: string }) => {
+        openDialog({
+          header: "Thank you for having time with us!",
+          text: `Your HashCretures is burned at Tx:${hash}`,
+        });
+      })
+      .catch((err: Error) => {
+        console.error(err.message);
+        openDialog({
+          header: "Transaction Failed!",
+          text: `Please try again... I hope it will work...`,
+        });
+      });
   };
 
   return (
@@ -82,7 +143,7 @@ export const Create: React.FC = () => {
         </p>
       </div>
       <div className="slippage">
-        <h4>Slippage</h4>
+        <h4>Slippage for Mint Creatures</h4>
         <div className="slippage_radio" onChange={handleSlippage}>
           <label>
             <input
@@ -126,8 +187,11 @@ export const Create: React.FC = () => {
       <div className="mint_button">
         <button
           type="button"
-          className="nes-btn is-success mint_button"
+          className={`${
+            !priceToMint && "is-disabled"
+          } nes-btn is-success mint_button`}
           onClick={mintNft}
+          disabled={!priceToMint}
         >
           Mint for {priceToMint ? ethers.utils.formatEther(priceToMint) : "?"}{" "}
           ETH
@@ -136,18 +200,21 @@ export const Create: React.FC = () => {
       <div className="mint_button">
         <button
           type="button"
-          className="nes-btn is-error mint_button"
-          onClick={mintNft}
+          className={`${
+            !priceToBurn && "is-disabled"
+          } nes-btn is-error mint_button`}
+          onClick={openPrompt}
+          disabled={!priceToMint}
         >
           Burn for {priceToBurn ? ethers.utils.formatEther(priceToBurn) : "?"}{" "}
           ETH
         </button>
       </div>
       <section>
-        <dialog className="nes-dialog is-dark" id="dialog-alert">
+        <dialog className="nes-dialog is-dark" id="dialog">
           <form method="dialog">
-            <p className="title">Wrong Network Detected!</p>
-            <p>Please connect rinkeby network</p>
+            <p className="title">{dialogHeader}</p>
+            <p>{dialogText}</p>
             <menu className="dialog-menu">
               <button className="nes-btn is-primary">Confirm</button>
             </menu>
@@ -155,20 +222,29 @@ export const Create: React.FC = () => {
         </dialog>
       </section>
       <section>
-        <dialog className="nes-dialog is-dark" id="dialog-dark">
+        <dialog className="nes-dialog is-dark" id="prompt">
           <form method="dialog">
-            <p className="title">Dark dialog</p>
-            <p>Alert: this is a dialog.</p>
+            <p className="title">Please input your token ID to burn.</p>
+            <div className="nes-field is-inline">
+              <label htmlFor="dark_field">ID</label>
+              <input
+                type="number"
+                id="dark_field"
+                className="nes-input is-dark"
+                placeholder="1"
+                onChange={handleTokenIdChain}
+              />
+            </div>
             <menu className="dialog-menu">
-              <button className="nes-btn" onClick={() => console.log("cancel")}>
-                Cancel
-              </button>
-              <button
-                className="nes-btn is-primary"
-                onClick={() => console.log("confirm")}
-              >
-                Confirm
-              </button>
+              <div className="confirm_button ">
+                <button
+                  className={`${!tokenId && "is-disabled"} nes-btn is-primary`}
+                  onClick={burnNFT}
+                  disabled={!tokenId}
+                >
+                  Confirm
+                </button>
+              </div>
             </menu>
           </form>
         </dialog>
